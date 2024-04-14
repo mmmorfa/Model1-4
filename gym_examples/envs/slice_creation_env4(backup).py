@@ -7,8 +7,6 @@ from stable_baselines3.common.env_checker import check_env
 from copy import deepcopy
 from random import randint
 from math import log2, ceil, floor
-import sqlite3
-import json
 
 
 
@@ -30,7 +28,7 @@ ARRIVAL_RATE = {0: 3, 1: 2, 2: 3, 3: 4, 4: 2, 5: 3, 6: 3, 7: 2, 8: 3, 9: 4, 10: 
 # VNF life cycle from VNF types dictionary
 LIFE_CYCLE_RATE = {0: 10, 1: 8, 2: 5, 3: 3, 4: 9, 5: 10, 6: 10, 7: 8, 8: 5, 9: 3, 10: 9, 11: 10}
 # Num of vnf requests
-NUM_VNF_REQUESTS = 100
+NUM_VNF_REQUESTS = 1000
 
 # ****************************** VNF Generator FUNCTIONS ******************************
 
@@ -123,7 +121,7 @@ class SliceCreationEnv4(gym.Env):
         self.scs = 2**(self.numerology) * 15_000   # Hz
         self.slot_per_subframe = 2**(self.numerology)
         
-        self.channel_BW = 7_000_000              # Hz (100MHz for <6GHz band, and 400MHZ for mmWave)
+        self.channel_BW = 10_000_000              # Hz (100MHz for <6GHz band, and 400MHZ for mmWave)
         self.guard_BW = 845_000                   # Hz (for symmetric guard band)
 
         self.PRB_BW = self.scs * 12               # Hz - Bandwidth for one PRB (one OFDM symbol, 12 subcarriers)
@@ -165,9 +163,6 @@ class SliceCreationEnv4(gym.Env):
         
         self.processed_requests = []
 
-        # Create Database 
-        #self.create_db()
-
     #-------------------------Reset Method----------------------------------------------------------------------------------------
     def reset(self, seed=None, options=None):
         # Initialize the environment to its initial state
@@ -176,17 +171,13 @@ class SliceCreationEnv4(gym.Env):
 
         generate_vnf_list()
 
-        # Create Database 
-        self.create_db()
-
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
         
         self.current_time_step = 1
         self.reward = 0
-
+        
         self.processed_requests = []
-        self.update_db('processed_requests', 0)
 
         self.reset_resources()
         self.slice_requests = pd.read_csv('/home/mario/Documents/DQN_Models/Model 1/gym-examples4/gym_examples/slice_request_db4')  # Load VNF requests from the generated CSV
@@ -210,7 +201,6 @@ class SliceCreationEnv4(gym.Env):
     def step(self, action):
         
         if self.first:
-            self.read_parameter_db('processed_requests', 0)
             self.next_request = self.processed_requests[0]
             self.first = False
         #else: 
@@ -265,12 +255,11 @@ class SliceCreationEnv4(gym.Env):
         if len(self.processed_requests) != 0:
             for i in self.processed_requests:
                 #i[2] < request[0]
-                if len(i) == 10 and i['SLICE_KILL_@TIME'] <= request['ARRIVAL_REQUEST_@TIME']:
+                if len(i)== 10 and i['SLICE_KILL_@TIME'] <= request['ARRIVAL_REQUEST_@TIME']:
                     slice_id = self.create_slice(i)
                     self.deallocate_slice(i, slice_id)
                     self.processed_requests.remove(i)
         self.processed_requests.append(request)
-        self.update_db('processed_requests', 0)
         
     def check_resources(self, request):
         # Logic to check if there are available resources to allocate the VNF request
@@ -284,42 +273,36 @@ class SliceCreationEnv4(gym.Env):
         slice_id = self.create_slice(request)
 
         if slice_id == 1:
-            self.read_parameter_db('resources', 1)
             if (self.resources_1['MEC_CPU'] >= request['SLICE_MEC_CPU_REQUEST'] and self.resources_1['MEC_RAM'] >= request['SLICE_MEC_RAM_REQUEST'] and 
                 self.resources_1['MEC_STORAGE'] >= request['SLICE_MEC_STORAGE_REQUEST'] and self.resources_1['MEC_BW'] >= request['SLICE_MEC_BW_REQUEST'] and ran_resources
                 ):
                 self.resources_flag = 1
             else: self.resources_flag = 0
         elif slice_id == 2:
-            self.read_parameter_db('resources', 2)
             if (self.resources_2['MEC_CPU'] >= request['SLICE_MEC_CPU_REQUEST'] and self.resources_2['MEC_RAM'] >= request['SLICE_MEC_RAM_REQUEST'] and 
                 self.resources_2['MEC_STORAGE'] >= request['SLICE_MEC_STORAGE_REQUEST'] and self.resources_2['MEC_BW'] >= request['SLICE_MEC_BW_REQUEST'] and ran_resources
                 ):
                 self.resources_flag = 1
             else: self.resources_flag = 0
         elif slice_id == 3:
-            self.read_parameter_db('resources', 3)
             if (self.resources_3['MEC_CPU'] >= request['SLICE_MEC_CPU_REQUEST'] and self.resources_3['MEC_RAM'] >= request['SLICE_MEC_RAM_REQUEST'] and 
                 self.resources_3['MEC_STORAGE'] >= request['SLICE_MEC_STORAGE_REQUEST'] and self.resources_3['MEC_BW'] >= request['SLICE_MEC_BW_REQUEST'] and ran_resources
                 ):
                 self.resources_flag = 1
             else: self.resources_flag = 0
         elif slice_id == 4:
-            self.read_parameter_db('resources', 4)
             if (self.resources_4['MEC_CPU'] >= request['SLICE_MEC_CPU_REQUEST'] and self.resources_4['MEC_RAM'] >= request['SLICE_MEC_RAM_REQUEST'] and 
                 self.resources_4['MEC_STORAGE'] >= request['SLICE_MEC_STORAGE_REQUEST'] and self.resources_4['MEC_BW'] >= request['SLICE_MEC_BW_REQUEST'] and ran_resources
                 ):
                 self.resources_flag = 1
             else: self.resources_flag = 0
         elif slice_id == 5:
-            self.read_parameter_db('resources', 5)
             if (self.resources_5['MEC_CPU'] >= request['SLICE_MEC_CPU_REQUEST'] and self.resources_5['MEC_RAM'] >= request['SLICE_MEC_RAM_REQUEST'] and 
                 self.resources_5['MEC_STORAGE'] >= request['SLICE_MEC_STORAGE_REQUEST'] and self.resources_5['MEC_BW'] >= request['SLICE_MEC_BW_REQUEST'] and ran_resources
                 ):
                 self.resources_flag = 1
             else: self.resources_flag = 0
         elif slice_id == 6:
-            self.read_parameter_db('resources', 6)
             if (self.resources_6['MEC_CPU'] >= request['SLICE_MEC_CPU_REQUEST'] and self.resources_6['MEC_RAM'] >= request['SLICE_MEC_RAM_REQUEST'] and 
                 self.resources_6['MEC_STORAGE'] >= request['SLICE_MEC_STORAGE_REQUEST'] and self.resources_6['MEC_BW'] >= request['SLICE_MEC_BW_REQUEST'] and ran_resources
                 ):
@@ -334,103 +317,77 @@ class SliceCreationEnv4(gym.Env):
         
         # MEC resources part---------------------------------------------------------------
         if slice_id == 1:
-            self.read_parameter_db('resources', 1)
             self.resources_1['MEC_CPU'] -= request['SLICE_MEC_CPU_REQUEST']
             self.resources_1['MEC_RAM'] -= request['SLICE_MEC_RAM_REQUEST']
             self.resources_1['MEC_STORAGE'] -= request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_1['MEC_BW'] -= request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 1)
         elif slice_id == 2:
-            self.read_parameter_db('resources', 2)
             self.resources_2['MEC_CPU'] -= request['SLICE_MEC_CPU_REQUEST']
             self.resources_2['MEC_RAM'] -= request['SLICE_MEC_RAM_REQUEST']
             self.resources_2['MEC_STORAGE'] -= request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_2['MEC_BW'] -= request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 2)
         elif slice_id == 3:
-            self.read_parameter_db('resources', 3)
             self.resources_3['MEC_CPU'] -= request['SLICE_MEC_CPU_REQUEST']
             self.resources_3['MEC_RAM'] -= request['SLICE_MEC_RAM_REQUEST']
             self.resources_3['MEC_STORAGE'] -= request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_3['MEC_BW'] -= request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 3)
         elif slice_id == 4:
-            self.read_parameter_db('resources', 4)
             self.resources_4['MEC_CPU'] -= request['SLICE_MEC_CPU_REQUEST']
             self.resources_4['MEC_RAM'] -= request['SLICE_MEC_RAM_REQUEST']
             self.resources_4['MEC_STORAGE'] -= request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_4['MEC_BW'] -= request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 4)
         elif slice_id == 5:
-            self.read_parameter_db('resources', 5)
             self.resources_5['MEC_CPU'] -= request['SLICE_MEC_CPU_REQUEST']
             self.resources_5['MEC_RAM'] -= request['SLICE_MEC_RAM_REQUEST']
             self.resources_5['MEC_STORAGE'] -= request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_5['MEC_BW'] -= request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 5)
         elif slice_id == 6:
-            self.read_parameter_db('resources', 6)
             self.resources_6['MEC_CPU'] -= request['SLICE_MEC_CPU_REQUEST']
             self.resources_6['MEC_RAM'] -= request['SLICE_MEC_RAM_REQUEST']
             self.resources_6['MEC_STORAGE'] -= request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_6['MEC_BW'] -= request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 6)
     
     def deallocate_slice(self, request, slice_id):
         # Function to deallocate resources of killed requests
 
         # RAN Resources Part-----------------------------------------------------------
-        self.read_parameter_db('PRB_map', 0)
         indices = np.where(self.PRB_map == request['UE_ID'])
 
         for i in range(len(indices[0])):
             #print(f"({indices[0][i]}, {indices[1][i]})")
             self.PRB_map[indices[0][i], indices[1][i]] = 0
-        self.update_db('PRB_map', 0)
 
         # MEC Resources Part------------------------------------------------------------
         if slice_id == 1:
-            self.read_parameter_db('resources', 1)
             self.resources_1['MEC_CPU'] += request['SLICE_MEC_CPU_REQUEST']
             self.resources_1['MEC_RAM'] += request['SLICE_MEC_RAM_REQUEST']
             self.resources_1['MEC_STORAGE'] += request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_1['MEC_BW'] += request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 1)
         elif slice_id == 2:
-            self.read_parameter_db('resources', 2)
             self.resources_2['MEC_CPU'] += request['SLICE_MEC_CPU_REQUEST']
             self.resources_2['MEC_RAM'] += request['SLICE_MEC_RAM_REQUEST']
             self.resources_2['MEC_STORAGE'] += request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_2['MEC_BW'] += request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 2)
         elif slice_id == 3:
-            self.read_parameter_db('resources', 3)
             self.resources_3['MEC_CPU'] += request['SLICE_MEC_CPU_REQUEST']
             self.resources_3['MEC_RAM'] += request['SLICE_MEC_RAM_REQUEST']
             self.resources_3['MEC_STORAGE'] += request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_3['MEC_BW'] += request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 3)
         elif slice_id == 4:
-            self.read_parameter_db('resources', 4)
             self.resources_4['MEC_CPU'] += request['SLICE_MEC_CPU_REQUEST']
             self.resources_4['MEC_RAM'] += request['SLICE_MEC_RAM_REQUEST']
             self.resources_4['MEC_STORAGE'] += request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_4['MEC_BW'] += request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 4)
         elif slice_id == 5:
-            self.read_parameter_db('resources', 5)
             self.resources_5['MEC_CPU'] += request['SLICE_MEC_CPU_REQUEST']
             self.resources_5['MEC_RAM'] += request['SLICE_MEC_RAM_REQUEST']
             self.resources_5['MEC_STORAGE'] += request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_5['MEC_BW'] += request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 5)
         elif slice_id == 6:
-            self.read_parameter_db('resources', 6)
             self.resources_6['MEC_CPU'] += request['SLICE_MEC_CPU_REQUEST']
             self.resources_6['MEC_RAM'] += request['SLICE_MEC_RAM_REQUEST']
             self.resources_6['MEC_STORAGE'] += request['SLICE_MEC_STORAGE_REQUEST']
             self.resources_6['MEC_BW'] += request['SLICE_MEC_BW_REQUEST']
-            self.update_db('resources', 6)
         
     def create_slice (self, request):
         # Function to create the slice for a specific request
@@ -467,43 +424,36 @@ class SliceCreationEnv4(gym.Env):
         #self.resources_6 = {'MEC_CPU': 20, 'MEC_RAM': 64, 'MEC_STORAGE': 80, 'MEC_BW': 80}
 
         self.PRB_map = np.zeros((14, self.PRB_per_channel))
-        self.update_db('PRB_map', 0)
 
         self.resources_1['MEC_CPU'] = 30
         self.resources_1['MEC_RAM'] = 128
         self.resources_1['MEC_STORAGE'] = 100
         self.resources_1['MEC_BW'] = 300
-        self.update_db('resources', 1)
 
         self.resources_2['MEC_CPU'] = 30
         self.resources_2['MEC_RAM'] = 128
         self.resources_2['MEC_STORAGE'] = 100
         self.resources_2['MEC_BW'] = 200
-        self.update_db('resources', 2)
 
         self.resources_3['MEC_CPU'] = 50
         self.resources_3['MEC_RAM'] = 128
         self.resources_3['MEC_STORAGE'] = 100
         self.resources_3['MEC_BW'] = 200
-        self.update_db('resources', 3)
 
         self.resources_4['MEC_CPU'] = 30
         self.resources_4['MEC_RAM'] = 128
         self.resources_4['MEC_STORAGE'] = 100
         self.resources_4['MEC_BW'] = 200
-        self.update_db('resources', 4)
 
         self.resources_5['MEC_CPU'] = 20
         self.resources_5['MEC_RAM'] = 64
         self.resources_5['MEC_STORAGE'] = 80
         self.resources_5['MEC_BW'] = 100
-        self.update_db('resources', 5)
 
         self.resources_6['MEC_CPU'] = 20
         self.resources_6['MEC_RAM'] = 64
         self.resources_6['MEC_STORAGE'] = 80
         self.resources_6['MEC_BW'] = 80
-        self.update_db('resources', 6)
     
     def evaluate_action(self, action, slice_id, reward_value, terminated):
         if action == 1 and slice_id == 1:
@@ -511,7 +461,6 @@ class SliceCreationEnv4(gym.Env):
             if self.resources_flag == 1:
                 self.allocate_slice(self.next_request,slice_id)
                 self.processed_requests[len(self.processed_requests) - 1]['SliceID'] = slice_id
-                self.update_db('processed_requests', 0)
                 self.reward += reward_value   
                 self.next_request = self.read_request()
             else: 
@@ -527,7 +476,6 @@ class SliceCreationEnv4(gym.Env):
             if self.resources_flag == 1:
                 self.allocate_slice(self.next_request, slice_id)
                 self.processed_requests[len(self.processed_requests) - 1]['SliceID'] = slice_id
-                self.update_db('processed_requests', 0)
                 self.reward += reward_value   
                 self.next_request = self.read_request()
             else: 
@@ -543,7 +491,6 @@ class SliceCreationEnv4(gym.Env):
             if self.resources_flag == 1:
                 self.allocate_slice(self.next_request, slice_id)
                 self.processed_requests[len(self.processed_requests) - 1]['SliceID'] = slice_id
-                self.update_db('processed_requests', 0)
                 self.reward += reward_value   
                 self.next_request = self.read_request()
             else: 
@@ -559,7 +506,6 @@ class SliceCreationEnv4(gym.Env):
             if self.resources_flag == 1:
                 self.allocate_slice(self.next_request, slice_id)
                 self.processed_requests[len(self.processed_requests) - 1]['SliceID'] = slice_id
-                self.update_db('processed_requests', 0)
                 self.reward += reward_value   
                 self.next_request = self.read_request()
             else: 
@@ -575,7 +521,6 @@ class SliceCreationEnv4(gym.Env):
             if self.resources_flag == 1:
                 self.allocate_slice(self.next_request, slice_id)
                 self.processed_requests[len(self.processed_requests) - 1]['SliceID'] = slice_id
-                self.update_db('processed_requests', 0)
                 self.reward += reward_value   
                 self.next_request = self.read_request()
             else: 
@@ -591,7 +536,6 @@ class SliceCreationEnv4(gym.Env):
             if self.resources_flag == 1:
                 self.allocate_slice(self.next_request, slice_id)
                 self.processed_requests[len(self.processed_requests) - 1]['SliceID'] = slice_id
-                self.update_db('processed_requests', 0)
                 self.reward += reward_value   
                 self.next_request = self.read_request()
             else: 
@@ -606,7 +550,6 @@ class SliceCreationEnv4(gym.Env):
             self.check_resources(self.next_request)
             if self.resources_flag == 0:
                 self.reward += reward_value
-                self.processed_requests.remove(self.processed_requests[len(self.processed_requests) - 1])
                 self.next_request = self.read_request()
             else: 
                 terminated = True
@@ -615,7 +558,6 @@ class SliceCreationEnv4(gym.Env):
         return terminated
 
     def check_RAN(self, request):
-        self.read_parameter_db('PRB_map', 0)
         indices = np.where(self.PRB_map == 0)
         available_symbols = len(indices[0])
 
@@ -626,7 +568,6 @@ class SliceCreationEnv4(gym.Env):
         else: return False
 
     def allocate_ran(self, request):
-        self.read_parameter_db('PRB_map', 0)
         indices = np.where(self.PRB_map == 0)
 
         number_symbols = ceil((request['SLICE_RAN_R_REQUEST'] * (10**6)) / (self.PRB_BW * self.sprectral_efficiency * log2(1 + request['UE_SiNR'])))
@@ -634,130 +575,6 @@ class SliceCreationEnv4(gym.Env):
         for i in range(number_symbols):
             #print(f"({indices[0][i]}, {indices[1][i]})")
             self.PRB_map[indices[0][i], indices[1][i]] = request['UE_ID']
-        self.update_db('PRB_map', 0)
-
-    def create_db(self):
-        # Serialize data
-        serialized_processed_requests = json.dumps(self.processed_requests)
-        serialized_PRB_map = self.PRB_map.tobytes()
-        serialized_resources_1 = json.dumps(self.resources_1)
-        serialized_resources_2 = json.dumps(self.resources_2)
-        serialized_resources_3 = json.dumps(self.resources_3)
-        serialized_resources_4 = json.dumps(self.resources_4)
-        serialized_resources_5 = json.dumps(self.resources_5)
-        serialized_resources_6 = json.dumps(self.resources_6)
-
-        # Connect to the SQLite database
-        conn = sqlite3.connect('Global_Parameters.db')
-        cursor = conn.cursor()
-
-        # Create a table if it doesn't exist
-        cursor.execute('''CREATE TABLE IF NOT EXISTS Parameters (
-                            processed_requests TEXT,
-                            PRB_map BLOB,
-                            resources_1 TEXT,
-                            resources_2 TEXT,
-                            resources_3 TEXT,
-                            resources_4 TEXT,
-                            resources_5 TEXT,
-                            resources_6 TEXT
-                        )''')
-        
-        # Insert data into the database
-        cursor.execute('''INSERT INTO Parameters (processed_requests, PRB_map, resources_1, resources_2, resources_3, resources_4, resources_5, resources_6) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                    (serialized_processed_requests, serialized_PRB_map, serialized_resources_1, serialized_resources_2, serialized_resources_3, serialized_resources_4, serialized_resources_5, serialized_resources_6))
-        
-        # Commit changes and close connection
-        conn.commit()
-        conn.close()
-
-    def update_db(self, parameter, number):
-        # Connect to the SQLite database
-        conn = sqlite3.connect('Global_Parameters.db')
-        cursor = conn.cursor()
-
-        if parameter == 'processed_requests':
-            # Serialize data
-            serialized_parameter = json.dumps(self.processed_requests)
-
-            cursor.execute('''UPDATE Parameters SET processed_requests = ? WHERE rowid = 1''', (serialized_parameter,))
-
-        if parameter == 'PRB_map':
-            # Serialize data
-            serialized_parameter = self.PRB_map.tobytes()
-
-            cursor.execute('''UPDATE Parameters SET PRB_map = ? WHERE rowid = 1''', (serialized_parameter,)) 
-
-        if parameter == 'resources':
-            match number:
-                case 1:
-                    #Serialize data
-                    serialized_parameter = json.dumps(self.resources_1)
-                case 2:
-                    #Serialize data
-                    serialized_parameter = json.dumps(self.resources_2)
-                case 3:
-                    #Serialize data
-                    serialized_parameter = json.dumps(self.resources_3)
-                case 4:
-                    #Serialize data
-                    serialized_parameter = json.dumps(self.resources_4)
-                case 5:
-                     #Serialize data
-                    serialized_parameter = json.dumps(self.resources_5)
-                case 6:
-                     #Serialize data
-                    serialized_parameter = json.dumps(self.resources_6)
-
-            cursor.execute('''UPDATE Parameters SET resources_{} = ? WHERE rowid = 1'''.format(str(number)), (serialized_parameter,))
-
-        # Commit changes and close connection
-        conn.commit()
-        conn.close()
-
-    def read_parameter_db(self, parameter, number):
-        # Connect to the SQLite database
-        conn = sqlite3.connect('Global_Parameters.db')
-        cursor = conn.cursor()
-
-        if parameter == 'processed_requests':
-
-            # Query the database to retrieve stored data
-            cursor.execute('''SELECT processed_requests FROM Parameters''')
-            row = cursor.fetchone()
-            self.processed_requests = json.loads(row[0])
-
-        if parameter == 'PRB_map':
-
-            # Query the database to retrieve stored data
-            cursor.execute('''SELECT PRB_map FROM Parameters''')
-            row = cursor.fetchone()
-            self.PRB_map = np.frombuffer(bytearray(row[0]), dtype=np.int64).reshape((14, self.PRB_per_channel))
-
-        if parameter == 'resources':
-            # Query the database to retrieve stored data
-            cursor.execute('''SELECT resources_{} FROM Parameters'''.format(str(number)))
-            row = cursor.fetchone()
-
-            match number:
-                case 1:
-                    self.resources_1 = json.loads(row[0])
-                case 2:
-                    self.resources_2 = json.loads(row[0])
-                case 3:
-                    self.resources_3 = json.loads(row[0])
-                case 4:
-                    self.resources_4 = json.loads(row[0])
-                case 5: 
-                    self.resources_5 = json.loads(row[0])
-                case 6:
-                    self.resources_6 = json.loads(row[0])
-
-        # Commit changes and close connection
-        conn.commit()
-
-        # Close connection
-        conn.close()
 
     def render(self):
         if self.render_mode == "rgb_array":
@@ -768,5 +585,5 @@ class SliceCreationEnv4(gym.Env):
             pygame.display.quit()
             pygame.quit()
             
-#a = SliceCreationEnv4()
-#check_env(a)
+a = SliceCreationEnv4()
+check_env(a)
